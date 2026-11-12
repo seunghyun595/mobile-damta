@@ -55,6 +55,7 @@ full = f"""<!doctype html>
 window.__BUILD = "{BUILD}";
 (function () {{
   function check() {{
+    if (location.protocol === 'file:') return;
     try {{
       fetch('version.json?t=' + Date.now(), {{ cache: 'no-store' }}).then(function (r) {{ return r.ok ? r.json() : null; }}).then(function (j) {{
         if (!j || !j.v || j.v === window.__BUILD) return;

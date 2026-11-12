@@ -902,7 +902,7 @@ const Scenes = (() => {
       fill('soft-light', g, 0.55); fill('screen', 'rgb(40,24,30)', 0.6);
     }
     if (native === 'night' && T === 'dawn') { fill('soft-light', 'rgb(70,110,170)', 0.6); fill('screen', 'rgb(16,24,40)', 0.7); }
-    if (native === 'night' && T === 'day') { fill('screen', 'rgb(70,80,96)', 0.7); fill('saturation', 'rgb(128,128,128)', 0.25); }
+    if (native === 'night' && T === 'day') { fill('screen', 'rgb(36,42,52)', 0.6); }
     if (native === 'all') { if (T === 'night') fill('multiply', 'rgb(150,156,170)'); if (T === 'dusk') fill('soft-light', 'rgb(255,150,90)', 0.35); if (T === 'dawn') fill('soft-light', 'rgb(90,130,190)', 0.4); }
     if (e.weather === 'rain') { fill('multiply', 'rgb(176,182,194)'); fill('saturation', 'rgb(128,128,128)', 0.3); }
     if (e.weather === 'cloudy') { fill('saturation', 'rgb(128,128,128)', 0.4); fill('multiply', 'rgb(214,216,220)'); }
