@@ -1105,6 +1105,6 @@
   })();
   resize();
   updateHUD(); updateDock(); updateAction();
-  window.__damta = { G, S, I, LT, get LY() { return LY; }, tip: () => C && tipPoint(C), get C() { return C; }, Smoke, scene, start, pressStart, pressEnd, pressMove, setMode, pickPlace, stubOut, flick, info: () => Smoke.info() };
+  window.__damta = { G, S, I, LT, Scenes, Props, get LY() { return LY; }, tip: () => C && tipPoint(C), get C() { return C; }, Smoke, scene, start, pressStart, pressEnd, pressMove, setMode, pickPlace, stubOut, flick, info: () => Smoke.info() };
   requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
 })();
