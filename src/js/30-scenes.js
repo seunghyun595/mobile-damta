@@ -860,22 +860,36 @@ const Scenes = (() => {
   }
   const photoCache = new Map();
   function photoURL(id, w, h) { return `https://images.unsplash.com/${id}?w=${w}&h=${h}&fit=crop&crop=entropy&q=74&auto=format`; }
-  function loadPhoto(id, w, h, cb) {
-    w = Math.ceil(w / 40) * 40; h = Math.ceil(h / 40) * 40;
-    const key = id + '|' + w + 'x' + h;
+  const BUCKET = { portrait: [1080, 1920], landscape: [1920, 1080], thumb: [240, 330] };
+  function loadPhoto(id, bucket, cb, fail) {
+    const [w, h] = BUCKET[bucket];
+    const key = id + '|' + bucket;
     let p = photoCache.get(key);
-    if (p) { if (p.ok) cb(p); else if (!p.err) p.cbs.push(cb); return; }
-    p = { ok: false, err: false, cbs: [cb], img: new Image(), avg: null };
+    if (p) { if (p.ok) cb(p); else if (p.err) { if (fail) fail(); } else { p.cbs.push(cb); if (fail) p.fails.push(fail); } return p; }
+    p = { ok: false, err: false, cbs: [cb], fails: fail ? [fail] : [], img: new Image(), avg: null };
     photoCache.set(key, p);
     p.img.crossOrigin = 'anonymous';
     p.img.decoding = 'async';
     p.img.onload = () => {
       p.ok = true;
       try { const c = makeCanvas(10, 10), x = c.getContext('2d'); x.drawImage(p.img, 0, 0, 10, 10); const d = x.getImageData(0, 0, 10, 10).data; let r = 0, g = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; } const n = d.length / 4; p.avg = [r / n, g / n, b / n]; } catch (e) { p.avg = null; }
-      const cbs = p.cbs; p.cbs = []; cbs.forEach((f) => f(p));
+      const cbs = p.cbs; p.cbs = []; p.fails = []; cbs.forEach((f) => f(p));
     };
-    p.img.onerror = () => { p.err = true; p.cbs = []; };
+    p.img.onerror = () => { p.err = true; const f = p.fails; p.cbs = []; p.fails = []; f.forEach((g) => g()); };
     p.img.src = photoURL(id, w, h);
+    return p;
+  }
+  function peekPhoto(id, bucket) { const p = photoCache.get(id + '|' + bucket); return p && p.ok ? p : null; }
+  function coverDraw(x, img, w, h) {
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const s = Math.max(w / iw, h / ih), dw = iw * s, dh = ih * s;
+    x.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
+  function placeholder(ctx, w, h, e) {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    if (e.dark > 0.5) { g.addColorStop(0, '#07090e'); g.addColorStop(1, '#141922'); }
+    else { g.addColorStop(0, '#56636f'); g.addColorStop(1, '#8e9aa4'); }
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   }
   function gradePhoto(x, w, h, e, native) {
     const T = e.time;
@@ -901,7 +915,7 @@ const Scenes = (() => {
     const c = makeCanvas(L.fw, L.fh), x = c.getContext('2d');
     const k = 0.62;
     const t = makeCanvas(Math.max(2, L.fw * k), Math.max(2, L.fh * k)), tx = t.getContext('2d');
-    tx.imageSmoothingQuality = 'high'; tx.drawImage(p.img, 0, 0, t.width, t.height);
+    tx.imageSmoothingQuality = 'high'; coverDraw(tx, p.img, t.width, t.height);
     x.imageSmoothingQuality = 'high'; x.drawImage(t, 0, 0, L.fw, L.fh);
     gradePhoto(x, L.fw, L.fh, e, pk.native);
     return c;
@@ -940,14 +954,26 @@ const Scenes = (() => {
       R.L = L;
       R.rain.length = 0; R.snow.length = 0;
       const pk = pickPhoto(scene.id, e);
+      L.pk = pk;
       if (pk) {
-        const want = Math.min(1.6, Math.max(1, 1300 / Math.max(fw, fh)));
-        loadPhoto(pk.id, fw * want, fh * want, (p) => {
+        const bucket = R.h >= R.w ? 'portrait' : 'landscape';
+        const done = (p, instant) => {
           if (R.L !== L) return;
-          L.photo = buildPhotoLayer(L, p, pk, e); L.photoA = R.photoShown === pk.id ? 1 : 0; L.photoAvg = p.avg; R.photoShown = pk.id;
+          L.photo = buildPhotoLayer(L, p, pk, e); L.photoA = instant ? 1 : 0; L.photoAvg = p.avg;
+          R.prevLayer = L.photo; R.prevAvg = p.avg;
           if (scene.id === 'booth') L.data.lightK = 1;
-        });
+        };
+        const hit = peekPhoto(pk.id, bucket);
+        if (hit) done(hit, true);
+        else {
+          L.prevLayer = R.prevLayer && R.prevLayer.width === fw && R.prevLayer.height === fh ? R.prevLayer : null;
+          loadPhoto(pk.id, bucket, (p) => done(p, false), () => { if (R.L === L) L.photoFailed = true; });
+        }
       }
+    };
+    R.preload = function (e) {
+      const bucket = R.h >= R.w ? 'portrait' : 'landscape';
+      for (const sc of list) { const pk = pickPhoto(sc.id, e); if (pk) loadPhoto(pk.id, bucket, () => {}); }
     };
     function weather(clips, ox, oy, dt, t) {
       const e = R.env, w = R.w, h = R.h;
@@ -1014,9 +1040,13 @@ const Scenes = (() => {
         weather: (clips, ox = 0, oy = 0) => weather(clips, ox, oy, dt, t),
       };
       if (L.photo) {
-        L.photoA = Math.min(1, (L.photoA || 0) + dt * 1.5);
-        if (L.photoA < 1) R.scene.draw(ctx, L, e, t, dt, o);
-        drawPhoto(L, e, t, dt, o, fx);
+        L.photoA = Math.min(1, (L.photoA || 0) + dt * 1.6);
+        if (L.photoA < 1) { if (L.prevLayer) drawLayer(L, L.prevLayer, 1, t, dt, o, fx, false); else placeholder(ctx, L.w, L.h, e); }
+        drawLayer(L, L.photo, L.photoA, t, dt, o, fx, true);
+        photoFx(L, e, t, dt, o);
+      } else if (L.pk && !L.photoFailed) {
+        if (L.prevLayer) drawLayer(L, L.prevLayer, 1, t, dt, o, fx, true); else placeholder(ctx, L.w, L.h, e);
+        photoFx(L, e, t, dt, o);
       } else R.scene.draw(ctx, L, e, t, dt, o);
       // fog
       if (e.fog > 0.1) {
@@ -1047,23 +1077,24 @@ const Scenes = (() => {
         } else R.flash = 0;
       } else R.flash = 0;
     };
-    function drawPhoto(L, e, t, dt, o, fx) {
+    function drawLayer(L, layer, alpha, t, dt, o, fx, advance) {
       const D = L.data;
       let s = 1.02, bx = 0, by = 0;
       if (R.scene.walking) {
         const sp = fx.walkSpeed ?? 1;
-        D.walk = (D.walk || 0) + dt * 1.38 * sp;
-        const ph = (D.walk / 0.72) * Math.PI;
-        D.step = Math.floor(D.walk / 0.72);
+        if (advance) { D.walk = (D.walk || 0) + dt * 1.38 * sp; D.step = Math.floor(D.walk / 0.72); }
+        const ph = ((D.walk || 0) / 0.72) * Math.PI;
         s = 1.06 + 0.035 * Math.sin(t * 0.11);
         by = Math.cos(ph * 2) * L.h * 0.005 * sp; bx = Math.sin(ph) * L.w * 0.004 * sp;
       }
       ctx.save();
-      ctx.globalAlpha = L.photoA;
+      ctx.globalAlpha = alpha;
       ctx.translate(L.w / 2 + bx + (o.nx + L.m) * 0.6, L.h / 2 + by + (o.ny + L.m) * 0.6);
       ctx.scale(s, s);
-      ctx.drawImage(L.photo, -L.fw / 2, -L.fh / 2);
+      ctx.drawImage(layer, -L.fw / 2, -L.fh / 2);
       ctx.restore();
+    }
+    function photoFx(L, e, t, dt, o) {
       if (R.scene.id === 'stairs') {
         const lo = stairsLight(L, dt, o);
         if (lo < 1) { ctx.fillStyle = `rgba(3,7,6,${0.88 * (1 - lo)})`; ctx.fillRect(0, 0, L.w, L.h); glow(ctx, L.w * 0.2, L.h * 0.3, L.w * 0.5, [40, 230, 130], 0.12 * (1 - lo)); }
@@ -1072,8 +1103,9 @@ const Scenes = (() => {
     R.ambient = function () {
       if (!R.scene || !R.L) return [1, 1, 1];
       const L = R.L;
-      if (L.photo && L.photoAvg) {
-        const a = L.photoAvg, lum = (0.3 * a[0] + 0.59 * a[1] + 0.11 * a[2]) / 255;
+      const avg = L.photo ? L.photoAvg : L.pk && !L.photoFailed ? R.prevAvg : null;
+      if (avg) {
+        const a = avg, lum = (0.3 * a[0] + 0.59 * a[1] + 0.11 * a[2]) / 255;
         const lvl = clamp(0.64 + lum * 0.95, 0.64, 1.0);
         const n = Math.max(a[0], a[1], a[2], 1);
         let c = mixc([1, 1, 1], [a[0] / n, a[1] / n, a[2] / n], 0.2).map((v) => v * lvl);
@@ -1086,6 +1118,7 @@ const Scenes = (() => {
     R.sinkScreen = function (cam) {
       if (!R.scene || !R.scene.sink) return null;
       const s = R.scene.sink(R.L);
+      if (!s) return null;
       return { x: (s.x - R.L.m + cam.x * R.scale) / R.scale, y: (s.y - R.L.m + cam.y * R.scale) / R.scale, r: s.r / R.scale };
     };
     return R;
@@ -1093,18 +1126,22 @@ const Scenes = (() => {
   // scene thumbnail (static frame)
   function thumb(scene, e, cv) {
     const w = cv.width, h = cv.height, mgn = 2;
-    const L = { id: scene.id, w, h, m: mgn, fw: w + mgn * 2, fh: h + mgn * 2, far: makeCanvas(w + mgn * 2, h + mgn * 2), near: makeCanvas(w + mgn * 2, h + mgn * 2), data: { walk: 30, target: 1, lightOn: 1 } };
-    scene.build(L, e);
     const ctx = cv.getContext('2d');
-    ctx.clearRect(0, 0, w, h);
-    const o = { fx: -mgn, fy: -mgn, nx: -mgn, ny: -mgn, idle: 0, walkSpeed: 0, weather: () => {} };
-    try { scene.draw(ctx, L, e, 1, 0.016, o); } catch (err) { console.warn(err); }
-    if (e.fog > 0.1) { ctx.fillStyle = rgba(e.haze, e.fog * 0.4); ctx.fillRect(0, 0, w, h); }
-    const pk = pickPhoto(scene.id, e);
-    if (pk) loadPhoto(pk.id, w, h, (p) => {
-      ctx.clearRect(0, 0, w, h); ctx.drawImage(p.img, 0, 0, w, h); gradePhoto(ctx, w, h, e, pk.native);
+    const procedural = () => {
+      const L = { id: scene.id, w, h, m: mgn, fw: w + mgn * 2, fh: h + mgn * 2, far: makeCanvas(w + mgn * 2, h + mgn * 2), near: makeCanvas(w + mgn * 2, h + mgn * 2), data: { walk: 30, target: 1, lightOn: 1 } };
+      scene.build(L, e);
+      ctx.clearRect(0, 0, w, h);
+      const o = { fx: -mgn, fy: -mgn, nx: -mgn, ny: -mgn, idle: 0, walkSpeed: 0, weather: () => {} };
+      try { scene.draw(ctx, L, e, 1, 0.016, o); } catch (err) { console.warn(err); }
       if (e.fog > 0.1) { ctx.fillStyle = rgba(e.haze, e.fog * 0.4); ctx.fillRect(0, 0, w, h); }
-    });
+    };
+    const pk = pickPhoto(scene.id, e);
+    if (!pk) { procedural(); return; }
+    placeholder(ctx, w, h, e);
+    loadPhoto(pk.id, 'thumb', (p) => {
+      ctx.clearRect(0, 0, w, h); coverDraw(ctx, p.img, w, h); gradePhoto(ctx, w, h, e, pk.native);
+      if (e.fog > 0.1) { ctx.fillStyle = rgba(e.haze, e.fog * 0.4); ctx.fillRect(0, 0, w, h); }
+    }, procedural);
   }
   return { TIMES, WEATHERS, env, autoTime, list, byId, Renderer, thumb, PHOTOS };
 })();

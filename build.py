@@ -4,7 +4,7 @@
 index.html          full document (GitHub Pages, repo root)
 dist/artifact.html  body-only variant for the Artifact host (it wraps the page in its own skeleton)
 """
-import pathlib, re
+import pathlib, re, hashlib, json
 
 ROOT = pathlib.Path(__file__).parent
 SRC = ROOT / "src"
@@ -16,8 +16,10 @@ body = (SRC / "body.html").read_text()
 js_files = sorted((SRC / "js").glob("*.js"))
 js = "\n".join(f.read_text() for f in js_files)
 js = "(function(){\n'use strict';\n" + js + "\n})();"
+BUILD = hashlib.sha1((css + body + js + pathlib.Path(__file__).read_text()).encode()).hexdigest()[:10]
 
 FONTS = (
+    '<link rel="preconnect" href="https://images.unsplash.com" crossorigin>\n'
     '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400&family=Noto+Sans+KR:wght@400;500;800&display=swap">'
@@ -48,6 +50,26 @@ full = f"""<!doctype html>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
+<meta http-equiv="Cache-Control" content="no-cache">
+<script>
+window.__BUILD = "{BUILD}";
+(function () {{
+  function check() {{
+    try {{
+      fetch('version.json?t=' + Date.now(), {{ cache: 'no-store' }}).then(function (r) {{ return r.ok ? r.json() : null; }}).then(function (j) {{
+        if (!j || !j.v || j.v === window.__BUILD) return;
+        var u = new URL(location.href);
+        if (u.searchParams.get('v') === j.v) return;
+        u.searchParams.set('v', j.v);
+        location.replace(u.toString());
+      }}).catch(function () {{}});
+    }} catch (e) {{}}
+  }}
+  check();
+  window.addEventListener('pageshow', function (ev) {{ if (ev.persisted) check(); }});
+  document.addEventListener('visibilitychange', function () {{ if (!document.hidden && !document.body.classList.contains('live')) check(); }});
+}})();
+</script>
 {head_common}
 </head>
 <body>
@@ -67,5 +89,6 @@ artifact = f"""{head_common}
 """
 
 (ROOT / "index.html").write_text(full)
+(ROOT / "version.json").write_text(json.dumps({"v": BUILD}) + "\n")
 (DIST / "artifact.html").write_text(artifact)
-print("built", len(full) // 1024, "KB;", len(js_files), "js modules")
+print("built", len(full) // 1024, "KB;", len(js_files), "js modules; build", BUILD)

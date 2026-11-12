@@ -82,6 +82,17 @@
     const sc = Scenes.byId[S.place];
     Sound.setScene(sc.id, { indoor: sc.indoor, rain: env.rain > 0, snow: env.snow > 0, wind: env.wind * (sc.indoor ? 0.2 : 1) });
     document.documentElement.style.setProperty('--tint', env.dark > 0.5 ? '0.0' : '0.06');
+    updateDockState();
+  }
+  // dock shows live state: current place as a round photo, current weather as the icon
+  function updateDockState() {
+    const bP = document.querySelector('#bPlace'), bA = document.querySelector('#bAtmos');
+    if (!bP || !bA) return;
+    let av = bP.querySelector('canvas.av');
+    if (!av) { av = document.createElement('canvas'); av.className = 'av'; av.width = 64; av.height = 64; bP.appendChild(av); bP.classList.add('has-av'); }
+    try { Scenes.thumb(Scenes.byId[S.place], env, av); } catch (e) {}
+    const key = S.weather === 'clear' ? (curTime() === 'night' ? 'night' : curTime() === 'dusk' ? 'dusk' : 'clear') : S.weather;
+    if (bA.dataset.icon !== key && typeof ICON !== 'undefined') { bA.dataset.icon = key; bA.innerHTML = ICON[key]; }
   }
 
   // ── cigarette helpers
@@ -121,12 +132,12 @@
     updateHUD(); updateDock();
   }
   function showPack() {
-    G.phase = 'pack'; P.open = 0; P.rise = 0; P.alpha = 0; P.y = 60; P.tt = 0;
+    G.phase = 'pack'; P.open = 0; P.rise = 0; P.alpha = 0; P.y = 60; P.tt = 0; P.slid = false; P.closed = false;
     if (packLeft(S.cig) <= 0) { packs[S.cig] = 20; store.set('packs', packs); P.fresh = true; P.shine = 1; Sound.sfx.wrap(); }
     LT.target = 0;
   }
   function takeCig() {
-    if (G.phase !== 'pack' || P.alpha < 0.6) return;
+    if (G.phase !== 'pack' || P.alpha < 0.15) return;
     G.phase = 'taking'; P.tt = 0;
     Sound.sfx.pack();
     buzz(8);
@@ -310,7 +321,7 @@
   function exhale(x, y, rings) {
     const vape = S.mode === 'vape';
     let vol = clamp(I.amount, 0.12, 1);
-    if (!vape && (!C || !C.lit)) { if (!(G.phase === 'lit')) vol *= 0.15; }
+    if (!vape && (!C || !C.lit || G.phase !== 'lit')) return;
     if (vape) {
       const V = VAPES[S.vape];
       if (!(G.phase === 'device' || G.phase === 'heated')) return;
@@ -324,6 +335,7 @@
     const dur = rings ? 1.1 : (vape ? 1.2 + 2.0 * vol : 0.85 + 1.7 * vol);
     I.ex = { t: -0.16, dur, vol, dir, drift: rand(-1, 1), rings, kind: vape ? 'vape' : 'smoke', cloud: vape ? VAPES[S.vape].cloud : (C ? C.T.smoke : 1), pulses: rings ? [0, 0.3, 0.6] : null, menthol: C && C.menthol };
     Sound.exhale(vol, dur, env.cold);
+    markHinted();
     G.haze = clamp(G.haze + vol * (Scenes.byId[S.place].indoor ? 0.07 : 0.025) * (vape ? 1.6 : 1), 0, 1);
     if (!vape && C && C.lit) { C.rings.push(C.burn); if (C.rings.length > 14) C.rings.shift(); C.puffs++; }
     if (vape) {
@@ -407,10 +419,10 @@
       }
       if (I.active) {
         const V = VAPES[S.vape];
-        const cap = S.mode === 'vape' ? V.drawMax : 2.5;
-        const drawing = S.mode === 'vape' ? (G.phase === 'device' && (V.kind !== 'mod' || dev.power)) || G.phase === 'heated' : true;
+        const cap = S.mode === 'vape' ? V.drawMax : 3.0;
+        const drawing = S.mode === 'vape' ? (G.phase === 'device' && (V.kind !== 'mod' || dev.power)) || G.phase === 'heated' : G.phase === 'lit';
         if (drawing) I.amount += dt / cap;
-        if (I.amount > 1.18) cough();
+        if (I.amount > 1.22) cough();
       }
     }
     Sound.setInhale(I.active ? 0.6 + 0.4 * Math.min(1, I.amount) : 0);
@@ -619,7 +631,7 @@
         C.heat = approach(C.heat, C.lightP, 6, dt);
         if (C.lightP > 0) { C.burn = T.len - C.lightP * 0.7; }
         if (C.lightP >= 1) {
-          C.lit = true; C.lightP = 1; C.burn = T.len - 0.8; C.ash = 0.2;
+          C.lit = true; C.lightP = 1; C.burn = T.len - 0.8; C.ash = 0.2; I.amount = 0;
           if (G.phase === 'chain') { finishCig(O); O = null; }
           G.phase = 'lit'; G.session = G.session || performance.now();
           if (!LT.on) LT.hideT = 0.3;
@@ -806,6 +818,8 @@
     rootStyle.setProperty('--warm', (warm * 0.5 + LT.flame * 0.35 * night).toFixed(3));
     rootStyle.setProperty('--flash', scene.flash.toFixed(3));
     updateRing();
+    updateAction();
+    updateHint();
   }
   function windForFlame() {
     const sc = Scenes.byId[S.place];
@@ -983,12 +997,31 @@
     $('#bChain').setAttribute('aria-pressed', String(!!S.chain));
     $('#bSound').classList.toggle('off', !S.sound);
   }
+  let actState = '';
   function updateAction() {
-    const a = $('#bAction');
     const show = (G.phase === 'lit' && S.mode === 'cig') || G.phase === 'heated' || G.phase === 'preheat';
+    const st = (show ? 1 : 0) + (S.mode === 'cig' ? 'stub' : 'eject');
+    if (st === actState) return;
+    actState = st;
+    const a = $('#bAction');
     a.classList.toggle('show', show);
     a.dataset.kind = S.mode === 'cig' ? 'stub' : 'eject';
   }
+  // first-use gesture hints (no text): a tap pulse or a press-and-hold ring
+  let hinted = store.get('hinted', false), hintState = '';
+  const hintEl = $('#hint');
+  function updateHint() {
+    let mode = '', x = 0, y = 0;
+    if (G.started && !hinted && !sheetOpen && !I.down) {
+      const p = G.phase;
+      if (p === 'pack' && P.alpha > 0.8) { mode = 'tap'; x = LY.pack.x; y = LY.pack.y; }
+      else if (p === 'stickWait') { const st = devSt(); const q = Props.devPoint(st, 0, -VAPES[S.vape].h / 2 - 22); mode = 'tap'; x = q[0]; y = q[1]; }
+      else if ((p === 'unlit' && LT.vis > 0.9) || p === 'lit' || p === 'device' || p === 'heated') { mode = 'hold'; x = W * 0.5; y = H * (LY.portrait ? 0.36 : 0.34); }
+    }
+    if (mode) hintEl.style.transform = `translate(${x}px, ${y}px)`;
+    if (mode !== hintState) { hintState = mode; hintEl.className = mode ? 'on ' + mode : ''; }
+  }
+  function markHinted() { if (!hinted) { hinted = true; store.set('hinted', true); } }
   document.querySelectorAll('#mode button').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); Sound.sfx.ui(); setMode(b.dataset.mode); updateDock(); }));
   document.querySelectorAll('#dock [data-sheet]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); Sound.sfx.ui(); openSheet(b.dataset.sheet); }));
   $('#bChain').addEventListener('click', (e) => { e.stopPropagation(); S.chain = !S.chain; saveS(); updateDock(); Sound.sfx.pick(); buzz(8); });
@@ -1047,6 +1080,7 @@
     dissolveTitle();
     document.body.classList.add('live');
     setTimeout(() => { enterMode(); }, 650);
+    setTimeout(() => { try { scene.preload(env); } catch (e) {} }, 2500);
   }
   function dissolveTitle() {
     const h1 = $('#intro h1');
@@ -1079,14 +1113,15 @@
   });
 
   // ── loop
-  let last = performance.now(), errOnce = false, perf = { acc: 0, n: 0, lowT: 0 };
+  let last = performance.now(), perf = { acc: 0, n: 0, lowT: 0 };
+  const errSeen = new Set();
   function frame(now) {
     requestAnimationFrame(frame);
     let dt = (now - last) / 1000; last = now;
     if (!(dt > 0)) return;
     dt = FIXED ? 1 / 60 : Math.min(dt, 0.05);
     try { update(dt); render(dt); }
-    catch (err) { if (!errOnce) { errOnce = true; console.error(err); } }
+    catch (err) { const k = String(err && err.message); if (!errSeen.has(k)) { errSeen.add(k); console.error(err); } }
     // adaptive quality
     perf.acc += dt; perf.n++;
     if (perf.n >= 90) {
@@ -1106,6 +1141,6 @@
   })();
   resize();
   updateHUD(); updateDock(); updateAction();
-  window.__damta = { G, S, I, LT, Scenes, Props, get LY() { return LY; }, tip: () => C && tipPoint(C), get C() { return C; }, Smoke, scene, start, pressStart, pressEnd, pressMove, setMode, pickPlace, stubOut, flick, info: () => Smoke.info() };
+  window.__damta = { G, S, I, LT, DV, Scenes, Props, refreshScene, pickCig, pickVape, pickLighter, popCapsule, get LY() { return LY; }, tip: () => C && tipPoint(C), get C() { return C; }, Smoke, scene, start, pressStart, pressEnd, pressMove, setMode, pickPlace, stubOut, flick, info: () => Smoke.info() };
   requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
 })();

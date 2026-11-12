@@ -171,9 +171,9 @@ void main(){
   };
 
   // ── context + formats
-  function getGL(c) {
+  function getGL(c, only1) {
     const p = { alpha: true, depth: false, stencil: false, antialias: false, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' };
-    let g = c.getContext('webgl2', p);
+    let g = only1 ? null : c.getContext('webgl2', p);
     isGL2 = !!g;
     if (!g) g = c.getContext('webgl', p) || c.getContext('experimental-webgl', p);
     if (!g) return null;
@@ -392,8 +392,13 @@ void main(){
     canvas = cv;
     api.quality = PRESETS[quality] ? quality : 'mid';
     Q = PRESETS[api.quality];
+    const fresh = (old) => { const n = document.createElement('canvas'); n.id = old.id; n.className = old.className; old.parentNode.replaceChild(n, old); return n; };
     try {
-      if (!getGL(cv)) throw new Error('no float render targets');
+      if (!getGL(cv)) {
+        // WebGL2 without float targets: retry WebGL1 + half-float on a fresh canvas
+        if (isGL2) { canvas = cv = fresh(cv); gl = null; if (!getGL(cv, true)) throw new Error('no float render targets'); }
+        else throw new Error('no float render targets');
+      }
       buildPrograms();
       setupQuad();
       api.ok = true;
