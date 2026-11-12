@@ -23,7 +23,7 @@ body {
   touch-action: none;
 }
 #app { position: fixed; inset: 0; overflow: hidden; background: var(--ink); }
-#app canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#app > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #bg { opacity: 0; transition: opacity 2.2s cubic-bezier(.2, .7, .2, 1); }
 #fg { opacity: 0; transition: opacity 1.6s ease .5s; }
 body.live #bg, body.live #fg { opacity: 1; }
