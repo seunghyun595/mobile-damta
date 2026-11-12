@@ -549,10 +549,10 @@
     if (!c || !c.lit) return;
     const g = ribbonGeo(c);
     const inh = I.active && c === C ? 0.22 : 1;
-    const a0 = 0.34 * inh * k * Math.min(1.3, c.T.smoke) * (c.fade ?? 1);
+    const a0 = 0.5 * inh * k * Math.min(1.3, c.T.smoke) * (c.fade ?? 1);
     if (a0 < 0.01) return;
-    const am = Smoke.amb;
-    const col = [clamp(255 * (0.25 + 0.75 * SIDE[0] * am[0] * 1.35), 0, 255) | 0, clamp(255 * (0.25 + 0.75 * SIDE[1] * am[1] * 1.35), 0, 255) | 0, clamp(255 * (0.25 + 0.75 * SIDE[2] * am[2] * 1.35), 0, 255) | 0];
+    const am = Smoke.amb, lk = 0.85 + 0.75 * env.dark;
+    const col = [0, 1, 2].map((i) => clamp(255 * SIDE[i] * am[i] * lk, 0, 255) | 0);
     fg.save(); fg.lineCap = 'round';
     for (let si = 0; si < 3; si++) {
       let px = g.base[0], py = g.base[1];

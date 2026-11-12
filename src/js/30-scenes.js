@@ -477,10 +477,10 @@ const Scenes = (() => {
           const col = SIGN_COLS[Math.floor(it.h1 * SIGN_COLS.length)];
           const winCol = it.h2 > 0.5 ? [255, 222, 170] : [215, 232, 255];
           const a1 = P(it.X, 0.3, it.za + 0.3), a2 = P(it.X, 0.3, it.zb - 0.3), a3 = P(it.X, 2.9, it.zb - 0.3), a4 = P(it.X, 2.9, it.za + 0.3);
-          ctx.fillStyle = rgba(winCol, (0.18 + night * 0.62) * k * (it.h3 > 0.15 ? 1 : 0.15));
+          ctx.fillStyle = rgba(night > 0.3 ? winCol : mixc(winCol, e.sky[1], 0.5), (0.3 + night * 0.5) * k * (it.h3 > 0.15 ? 1 : 0.15));
           quad(ctx, [a1[0], a1[1], a2[0], a2[1], a3[0], a3[1], a4[0], a4[1]]); ctx.fill();
           const s1 = P(it.X, 3.15, it.za + 0.2), s2 = P(it.X, 3.15, it.zb - 0.2), s3 = P(it.X, 4.05, it.zb - 0.2), s4 = P(it.X, 4.05, it.za + 0.2);
-          ctx.fillStyle = rgba(col, (0.25 + night * 0.65) * k);
+          ctx.fillStyle = rgba(night > 0.3 ? col : shade(col, -0.15), (0.72 + night * 0.25) * k);
           quad(ctx, [s1[0], s1[1], s2[0], s2[1], s3[0], s3[1], s4[0], s4[1]]); ctx.fill();
           if (night > 0.3) { const cx = (s1[0] + s3[0]) / 2, cy = (s1[1] + s3[1]) / 2; glow(ctx, cx, cy, (f * 3.2) / it.za, col, 0.22 * night * k); }
           if (it.h3 > 0.4) { const u1 = P(it.X, 5.2, it.za + 1), u2 = P(it.X, 7.0, it.za + 2.4); ctx.fillStyle = rgba(WIN_WARM, night * 0.4 * k * it.h3); ctx.fillRect(Math.min(u1[0], u2[0]), Math.min(u1[1], u2[1]), Math.abs(u2[0] - u1[0]) + 1, Math.abs(u2[1] - u1[1]) + 1); }
@@ -488,7 +488,7 @@ const Scenes = (() => {
         } else if (it.kind === 'blade') {
           const col = SIGN_COLS[Math.floor(it.h1 * SIGN_COLS.length)];
           const a = P(it.X - 0.35, 7.6, it.z1), b = P(it.X + 0.35, 4.2, it.z1);
-          ctx.fillStyle = rgba(col, (0.3 + night * 0.7) * k); ctx.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+          ctx.fillStyle = rgba(night > 0.3 ? col : shade(col, -0.1), (0.75 + night * 0.25) * k); ctx.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
           ctx.fillStyle = rgba([255, 255, 255], 0.35 * night * k);
           const n = 4, hh = (b[1] - a[1]) / n;
           for (let i = 0; i < n; i++) ctx.fillRect(a[0] + (b[0] - a[0]) * 0.25, a[1] + hh * (i + 0.2), (b[0] - a[0]) * 0.5, hh * 0.55);
@@ -558,10 +558,16 @@ const Scenes = (() => {
         for (let i = 0; i < rows; i++) {
           const ry = y + (i / rows) * h;
           let px = x + 2;
+          const rh = h / rows - 3;
           while (px < x + w - 4) {
-            const pw = 3 + r() * 6;
-            const pc = pick([[230, 60, 60], [250, 200, 60], [60, 140, 230], [70, 190, 120], [240, 240, 240], [240, 120, 40], [150, 80, 200], [30, 30, 40]]);
-            c.fillStyle = rgba(pc, 0.85); c.fillRect(px, ry + 2 + r() * 2, pw - 1, h / rows - 5);
+            const kind = r(), pw = kind < 0.35 ? 7 + r() * 8 : kind < 0.7 ? 4 + r() * 3 : 3;
+            const ph = kind < 0.35 ? rh * (0.5 + r() * 0.35) : kind < 0.7 ? rh * (0.65 + r() * 0.3) : rh * 0.9;
+            const pc = pick([[230, 60, 60], [250, 200, 60], [60, 140, 230], [70, 190, 120], [245, 245, 245], [240, 120, 40], [30, 30, 40], [250, 120, 160]]);
+            const yb = ry + h / rows - 3;
+            c.fillStyle = rgba(pc, 0.9);
+            if (kind < 0.35) { rrect(c, px, yb - ph, pw - 1.2, ph, 2); c.fill(); c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(px + 1, yb - ph * 0.7, pw - 3, ph * 0.18); }
+            else if (kind < 0.7) { c.fillRect(px, yb - ph, pw - 1, ph); c.fillStyle = 'rgba(255,255,255,0.5)'; c.fillRect(px, yb - ph, pw - 1, 1.5); }
+            else { c.fillRect(px + 0.5, yb - ph * 0.75, pw - 1, ph * 0.75); c.fillRect(px + 1, yb - ph, pw - 2, ph * 0.3); }
             px += pw;
           }
           c.fillStyle = 'rgba(255,255,255,0.9)'; c.fillRect(x, ry + h / rows - 2, w, 2);

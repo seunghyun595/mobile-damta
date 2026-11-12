@@ -159,7 +159,7 @@ void main(){
   vec3 n = normalize(vec3((dl - dr) * 0.9, (dn - du) * 0.9, 0.6));
   float lit = 0.86 + 0.18 * dot(n, normalize(vec3(-0.3, 0.8, 0.5)));
   float thick = smoothstep(0.0, 2.4, d);
-  vec3 rgb = col * amb * lit * (1.0 - thick * 0.36);
+  vec3 rgb = col * amb * lit * (1.0 - thick * 0.2);
   vec2 de = vUv - ember.xy; de.x *= aspect;
   rgb += vec3(1.0, 0.42, 0.13) * ember.z * exp(-dot(de, de) / emberR) * (0.6 + 0.4 * (1.0 - thick));
   vec2 df = vUv - flame.xy; df.x *= aspect;
