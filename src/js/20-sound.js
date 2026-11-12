@@ -160,19 +160,11 @@ const Sound = (() => {
         break;
       }
       case 'booth': {
-        add(brown, [['bandpass', 240, 0.9]], 0.16, 0.3, 0.05);
-        add(pink, [['bandpass', 900, 0.6]], 0.028, 0.3, 0.05);
-        const hum = ctx.createOscillator(); hum.type = 'sawtooth'; hum.frequency.value = 59.7;
-        const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 180;
-        const hg = ctx.createGain(); hg.gain.value = 0;
-        hum.connect(hf); hf.connect(hg); route(hg, 0.3, 0.02); hum.start();
-        const buzzO = ctx.createOscillator(); buzzO.type = 'square'; buzzO.frequency.value = 120;
-        const bf = ctx.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 240; bf.Q.value = 8;
-        const bg = ctx.createGain(); bg.gain.value = 0;
-        buzzO.connect(bf); bf.connect(bg); route(bg, -0.2, 0.02); buzzO.start();
-        loops.push({ base: 0.012, cur: 0, g: hg, set(v, tc = 0.3) { hg.gain.setTargetAtTime(v, now(), tc); }, stop(f = 0.6) { hg.gain.setTargetAtTime(0, now(), f / 3); hum.stop(now() + f + 0.1); } });
-        loops.push({ base: 0.004, cur: 0, g: bg, set(v, tc = 0.3) { bg.gain.setTargetAtTime(v, now(), tc); }, stop(f = 0.6) { bg.gain.setTargetAtTime(0, now(), f / 3); buzzO.stop(now() + f + 0.1); } });
-        b.tick = () => { if (Math.random() < 0.006) door(); };
+        // corporate plaza: low city hum, air handling from the building, distant traffic
+        add(pink, [['bandpass', 210, 0.5]], 0.08, 0, 0.15);
+        add(brown, [['lowpass', 320]], 0.1, 0.2, 0.1);
+        add(pink, [['bandpass', 1600, 0.6]], 0.008, -0.3, 0.2);
+        b.tick = () => { if (Math.random() < 0.025) carPass(0.06); if (Math.random() < 0.006) door(); };
         break;
       }
       case 'street': {

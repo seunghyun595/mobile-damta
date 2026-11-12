@@ -237,8 +237,8 @@ const Scenes = (() => {
 
   // ══════════════ SMOKING BOOTH ══════════════
   const booth = {
-    id: 'booth', name: '흡연실', indoor: true, walking: false,
-    smoke: { wind: 0, buoy: 0.85, diss: 0.7 },
+    id: 'booth', name: '회사', indoor: false, walking: false,
+    smoke: { wind: 0.3, buoy: 0.9, diss: 0.85 },
     build(L, e) {
       const { fw, fh } = L, m = Math.min(fw, fh), r = mulberry(202);
       let c = L.far.getContext('2d');
@@ -368,7 +368,7 @@ const Scenes = (() => {
       glow(ctx, o.nx + L.fw * 0.5, o.ny + L.fh * 0.045, m * 0.5, [235, 250, 244], 0.22 * lightK);
       if (lightK < 1) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 0, L.w, L.h); }
     },
-    sink(L) { return L.data.fan; },
+    sink(L) { return L.photo ? null : L.data.fan; },
     amb(e, L) { const k = L.data.lightK ?? 1; return [0.93 * k, 1.0 * k, 0.96 * k]; },
   };
 
@@ -753,7 +753,7 @@ const Scenes = (() => {
 
   // ══════════════ HAN RIVER ══════════════
   const river = {
-    id: 'river', name: '한강', indoor: false, walking: false,
+    id: 'river', name: '광교호수공원', indoor: false, walking: false,
     smoke: { wind: 0.85, buoy: 1, diss: 1.05 },
     build(L, e) {
       const { fw, fh } = L, m = Math.min(fw, fh), r = mulberry(606);
@@ -839,6 +839,82 @@ const Scenes = (() => {
     amb(e) { return e.amb; },
   };
 
+  // ── real photographs (Unsplash License, loaded by the viewer's browser); procedural painters stay as fallback
+  const PHOTOS = {
+    roof: { night: 'photo-1705285603048-0d6d10fb3b8c', dusk: 'photo-1784974149798-6cafb6206094', day: 'photo-1787762001530-61a237ecec3f' },
+    booth: { night: 'photo-1662802850954-7d8f283fb9de', dusk: 'photo-1784960881237-d2eadcc5f346', day: 'photo-1784960881237-d2eadcc5f346' },
+    street: { night: 'photo-1538485399081-7191377e8241', day: 'photo-1733759942884-1cebba1e1420', snow: 'photo-1705978594179-eec60b0839a1', dawn: 'photo-1705978590338-fbd6858b25c3' },
+    store: { night: 'photo-1700594610763-ef48ac1597f4' },
+    stairs: { all: 'photo-1770119082739-54f754e5aa1d' },
+    river: { night: 'photo-1760706139927-eaca5c6fb3ef', day: 'photo-1619341663312-0b8cde878b2f' },
+  };
+  function pickPhoto(id, e) {
+    const P = PHOTOS[id];
+    if (!P) return null;
+    if (P.all) return { id: P.all, native: 'all' };
+    if (e.weather === 'snow' && P.snow) return { id: P.snow, native: 'night' };
+    if (P[e.time]) return { id: P[e.time], native: e.time };
+    if (e.time === 'day') return P.day ? { id: P.day, native: 'day' } : { id: P.night, native: 'night' };
+    if (e.time === 'dusk') return P.night ? { id: P.night, native: 'night' } : { id: P.day, native: 'day' };
+    return P.night ? { id: P.night, native: 'night' } : { id: P.day, native: 'day' };
+  }
+  const photoCache = new Map();
+  function photoURL(id, w, h) { return `https://images.unsplash.com/${id}?w=${w}&h=${h}&fit=crop&crop=entropy&q=74&auto=format`; }
+  function loadPhoto(id, w, h, cb) {
+    w = Math.ceil(w / 40) * 40; h = Math.ceil(h / 40) * 40;
+    const key = id + '|' + w + 'x' + h;
+    let p = photoCache.get(key);
+    if (p) { if (p.ok) cb(p); else if (!p.err) p.cbs.push(cb); return; }
+    p = { ok: false, err: false, cbs: [cb], img: new Image(), avg: null };
+    photoCache.set(key, p);
+    p.img.crossOrigin = 'anonymous';
+    p.img.decoding = 'async';
+    p.img.onload = () => {
+      p.ok = true;
+      try { const c = makeCanvas(10, 10), x = c.getContext('2d'); x.drawImage(p.img, 0, 0, 10, 10); const d = x.getImageData(0, 0, 10, 10).data; let r = 0, g = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; } const n = d.length / 4; p.avg = [r / n, g / n, b / n]; } catch (e) { p.avg = null; }
+      const cbs = p.cbs; p.cbs = []; cbs.forEach((f) => f(p));
+    };
+    p.img.onerror = () => { p.err = true; p.cbs = []; };
+    p.img.src = photoURL(id, w, h);
+  }
+  function gradePhoto(x, w, h, e, native) {
+    const T = e.time;
+    const fill = (op, style, a = 1) => { x.globalCompositeOperation = op; x.globalAlpha = a; x.fillStyle = style; x.fillRect(0, 0, w, h); };
+    if (native === 'day' && T === 'night') fill('multiply', 'rgb(64,74,112)');
+    if (native === 'day' && T === 'dusk') { fill('multiply', 'rgb(214,150,128)'); }
+    if (native === 'day' && T === 'dawn') fill('multiply', 'rgb(132,146,184)');
+    if (native === 'night' && T === 'dusk') {
+      const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(120,70,140,1)'); g.addColorStop(0.6, 'rgba(255,140,80,1)'); g.addColorStop(1, 'rgba(255,120,60,1)');
+      fill('soft-light', g, 0.55); fill('screen', 'rgb(40,24,30)', 0.6);
+    }
+    if (native === 'night' && T === 'dawn') { fill('soft-light', 'rgb(70,110,170)', 0.6); fill('screen', 'rgb(16,24,40)', 0.7); }
+    if (native === 'night' && T === 'day') { fill('screen', 'rgb(70,80,96)', 0.7); fill('saturation', 'rgb(128,128,128)', 0.25); }
+    if (native === 'all') { if (T === 'night') fill('multiply', 'rgb(150,156,170)'); if (T === 'dusk') fill('soft-light', 'rgb(255,150,90)', 0.35); if (T === 'dawn') fill('soft-light', 'rgb(90,130,190)', 0.4); }
+    if (e.weather === 'rain') { fill('multiply', 'rgb(176,182,194)'); fill('saturation', 'rgb(128,128,128)', 0.3); }
+    if (e.weather === 'cloudy') { fill('saturation', 'rgb(128,128,128)', 0.4); fill('multiply', 'rgb(214,216,220)'); }
+    if (e.weather === 'snow') { fill('saturation', 'rgb(128,128,128)', 0.3); fill('screen', 'rgb(40,44,52)', 0.8); }
+    // filmic: lifted shadows, gentle contrast
+    fill('soft-light', 'rgb(118,118,122)', 0.35);
+    x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
+  }
+  function buildPhotoLayer(L, p, pk, e) {
+    const c = makeCanvas(L.fw, L.fh), x = c.getContext('2d');
+    const k = 0.62;
+    const t = makeCanvas(Math.max(2, L.fw * k), Math.max(2, L.fh * k)), tx = t.getContext('2d');
+    tx.imageSmoothingQuality = 'high'; tx.drawImage(p.img, 0, 0, t.width, t.height);
+    x.imageSmoothingQuality = 'high'; x.drawImage(t, 0, 0, L.fw, L.fh);
+    gradePhoto(x, L.fw, L.fh, e, pk.native);
+    return c;
+  }
+  function stairsLight(L, dt, o) {
+    const D = L.data;
+    const target = o.idle > 22 ? 0 : 1;
+    if (target !== D.target) { D.target = target; D.flick = target ? 0.35 : 0; if (o.onSwitch) o.onSwitch(target); }
+    if (D.target === 1) { D.flick = Math.max(0, (D.flick || 0) - dt); D.lightOn = D.flick > 0 ? (Math.sin(D.flick * 90) > 0 ? 1 : 0.2) : 1; }
+    else D.lightOn = approach(D.lightOn ?? 1, 0, 18, dt);
+    return D.lightOn;
+  }
+
   const list = [roof, booth, street, store, stairs, river];
   const byId = Object.fromEntries(list.map((s) => [s.id, s]));
 
@@ -847,7 +923,7 @@ const Scenes = (() => {
     const ctx = canvas.getContext('2d');
     const R = { canvas, ctx, L: null, scene: null, env: null, key: '', rain: [], snow: [], splash: [], flash: 0, flashT: rand(8, 18), haze: 0, w: 1, h: 1, scale: 1, leaves: [] };
     R.resize = function (W, H, dpr) {
-      R.scale = clamp(Math.min(dpr, 2) * 0.55, 0.62, 1.1);
+      R.scale = clamp(Math.min(dpr, 2) * 0.72, 0.75, 1.45);
       R.w = Math.max(2, Math.round(W * R.scale)); R.h = Math.max(2, Math.round(H * R.scale));
       canvas.width = R.w; canvas.height = R.h;
       R.key = '';
@@ -863,6 +939,15 @@ const Scenes = (() => {
       scene.build(L, e);
       R.L = L;
       R.rain.length = 0; R.snow.length = 0;
+      const pk = pickPhoto(scene.id, e);
+      if (pk) {
+        const want = Math.min(1.6, Math.max(1, 1300 / Math.max(fw, fh)));
+        loadPhoto(pk.id, fw * want, fh * want, (p) => {
+          if (R.L !== L) return;
+          L.photo = buildPhotoLayer(L, p, pk, e); L.photoA = R.photoShown === pk.id ? 1 : 0; L.photoAvg = p.avg; R.photoShown = pk.id;
+          if (scene.id === 'booth') L.data.lightK = 1;
+        });
+      }
     };
     function weather(clips, ox, oy, dt, t) {
       const e = R.env, w = R.w, h = R.h;
@@ -928,7 +1013,11 @@ const Scenes = (() => {
         idle: fx.idle, walkSpeed: fx.walkSpeed, onSwitch: fx.onSwitch,
         weather: (clips, ox = 0, oy = 0) => weather(clips, ox, oy, dt, t),
       };
-      R.scene.draw(ctx, L, e, t, dt, o);
+      if (L.photo) {
+        L.photoA = Math.min(1, (L.photoA || 0) + dt * 1.5);
+        if (L.photoA < 1) R.scene.draw(ctx, L, e, t, dt, o);
+        drawPhoto(L, e, t, dt, o, fx);
+      } else R.scene.draw(ctx, L, e, t, dt, o);
       // fog
       if (e.fog > 0.1) {
         const g = ctx.createLinearGradient(0, 0, 0, R.h);
@@ -958,7 +1047,42 @@ const Scenes = (() => {
         } else R.flash = 0;
       } else R.flash = 0;
     };
-    R.ambient = function () { return R.scene && R.L ? R.scene.amb(R.env, R.L) : [1, 1, 1]; };
+    function drawPhoto(L, e, t, dt, o, fx) {
+      const D = L.data;
+      let s = 1.02, bx = 0, by = 0;
+      if (R.scene.walking) {
+        const sp = fx.walkSpeed ?? 1;
+        D.walk = (D.walk || 0) + dt * 1.38 * sp;
+        const ph = (D.walk / 0.72) * Math.PI;
+        D.step = Math.floor(D.walk / 0.72);
+        s = 1.06 + 0.035 * Math.sin(t * 0.11);
+        by = Math.cos(ph * 2) * L.h * 0.005 * sp; bx = Math.sin(ph) * L.w * 0.004 * sp;
+      }
+      ctx.save();
+      ctx.globalAlpha = L.photoA;
+      ctx.translate(L.w / 2 + bx + (o.nx + L.m) * 0.6, L.h / 2 + by + (o.ny + L.m) * 0.6);
+      ctx.scale(s, s);
+      ctx.drawImage(L.photo, -L.fw / 2, -L.fh / 2);
+      ctx.restore();
+      if (R.scene.id === 'stairs') {
+        const lo = stairsLight(L, dt, o);
+        if (lo < 1) { ctx.fillStyle = `rgba(3,7,6,${0.88 * (1 - lo)})`; ctx.fillRect(0, 0, L.w, L.h); glow(ctx, L.w * 0.2, L.h * 0.3, L.w * 0.5, [40, 230, 130], 0.12 * (1 - lo)); }
+      } else o.weather(null);
+    }
+    R.ambient = function () {
+      if (!R.scene || !R.L) return [1, 1, 1];
+      const L = R.L;
+      if (L.photo && L.photoAvg) {
+        const a = L.photoAvg, lum = (0.3 * a[0] + 0.59 * a[1] + 0.11 * a[2]) / 255;
+        const lvl = clamp(0.64 + lum * 0.95, 0.64, 1.0);
+        const n = Math.max(a[0], a[1], a[2], 1);
+        let c = mixc([1, 1, 1], [a[0] / n, a[1] / n, a[2] / n], 0.2).map((v) => v * lvl);
+        if (R.scene.id === 'stairs') { const lo = L.data.lightOn ?? 1; c = mixc([0.22, 0.42, 0.3], c, lo); }
+        return c;
+      }
+      return R.scene.amb(R.env, L);
+    };
+    R.hasPhoto = () => !!(R.L && R.L.photo);
     R.sinkScreen = function (cam) {
       if (!R.scene || !R.scene.sink) return null;
       const s = R.scene.sink(R.L);
@@ -976,6 +1100,11 @@ const Scenes = (() => {
     const o = { fx: -mgn, fy: -mgn, nx: -mgn, ny: -mgn, idle: 0, walkSpeed: 0, weather: () => {} };
     try { scene.draw(ctx, L, e, 1, 0.016, o); } catch (err) { console.warn(err); }
     if (e.fog > 0.1) { ctx.fillStyle = rgba(e.haze, e.fog * 0.4); ctx.fillRect(0, 0, w, h); }
+    const pk = pickPhoto(scene.id, e);
+    if (pk) loadPhoto(pk.id, w, h, (p) => {
+      ctx.clearRect(0, 0, w, h); ctx.drawImage(p.img, 0, 0, w, h); gradePhoto(ctx, w, h, e, pk.native);
+      if (e.fog > 0.1) { ctx.fillStyle = rgba(e.haze, e.fog * 0.4); ctx.fillRect(0, 0, w, h); }
+    });
   }
-  return { TIMES, WEATHERS, env, autoTime, list, byId, Renderer, thumb };
+  return { TIMES, WEATHERS, env, autoTime, list, byId, Renderer, thumb, PHOTOS };
 })();

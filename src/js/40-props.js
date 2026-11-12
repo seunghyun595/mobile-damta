@@ -741,6 +741,21 @@ const Props = (() => {
     const th = st.open * 2.1;
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 24 * st.dpr * st.sc; ctx.shadowOffsetY = 10 * st.dpr * st.sc;
     ctx.fillStyle = '#000'; rrect(ctx, 1, LID, W - 2, H - LID, 2); ctx.fill(); ctx.restore();
+    // thickness: right side panel and (when closed) the top face, in perspective
+    const dx = 7.5, dy = -4.2;
+    const side = ctx.createLinearGradient(W, 0, W + dx, 0);
+    side.addColorStop(0, rgba(tc(shade(P.body2, -0.25), st.amb))); side.addColorStop(1, rgba(tc(shade(P.body2, -0.45), st.amb)));
+    ctx.fillStyle = side;
+    ctx.beginPath(); ctx.moveTo(W - 0.4, st.open > 0.05 ? LID : 0.6); ctx.lineTo(W + dx, (st.open > 0.05 ? LID : 0.6) + dy); ctx.lineTo(W + dx, H + dy - 1); ctx.lineTo(W - 0.4, H - 1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(W - 0.4, (st.open > 0.05 ? LID : 0.6), 0.5, H - 1 - (st.open > 0.05 ? LID : 0.6));
+    if (!P.tin) { ctx.fillStyle = rgba(tc(shade(P.body2, -0.1), st.amb), 0.9); ctx.fillRect(W + dx * 0.3, H * 0.62 + dy * 0.3, dx * 0.5, 0.6); }
+    if (st.open < 0.05) {
+      const top = ctx.createLinearGradient(0, dy, 0, 0);
+      top.addColorStop(0, rgba(tc(shade(P.body, 0.18), st.amb))); top.addColorStop(1, rgba(tc(shade(P.body, 0.02), st.amb)));
+      ctx.fillStyle = top;
+      ctx.beginPath(); ctx.moveTo(0.6, 0.4); ctx.lineTo(dx + 0.6, dy); ctx.lineTo(W + dx, dy); ctx.lineTo(W - 0.4, 0.4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(1, 0, W - 2, 0.35);
+    }
     if (st.open > 0.01) {
       ctx.save(); ctx.beginPath(); ctx.rect(0, -70, W, LID + 70); ctx.clip();
       const fg = ctx.createLinearGradient(0, 0, W, 0);

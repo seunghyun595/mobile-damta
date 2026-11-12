@@ -54,7 +54,7 @@
     const portrait = H >= W * 1.05;
     const Sc = portrait ? Math.min(W * 0.0081, H * 0.0046) : Math.min(H * 0.0058, W * 0.004);
     const Sd = portrait ? Math.min(W * 0.0102, H * 0.0043) : Math.min(H * 0.0043, W * 0.0042);
-    const Sl = portrait ? Math.min(W * 0.0078, H * 0.0042) : Math.min(H * 0.0046, W * 0.0036);
+    const Sl = (portrait ? Math.min(W * 0.0078, H * 0.0042) : Math.min(H * 0.0046, W * 0.0036)) * 0.84;
     return {
       portrait, Sc, Sd, Sl,
       cig: { x: W * (portrait ? 0.45 : 0.47), y: H * (portrait ? 0.62 : 0.6), ang: -0.32 },
@@ -107,8 +107,9 @@
 
   function ambFg() {
     const a = scene.ambient();
-    const lift = env && env.dark > 0.5 ? 0.1 : 0.02;
-    return [clamp(a[0] + lift, 0, 1), clamp(a[1] + lift, 0, 1), clamp(a[2] + lift, 0, 1)];
+    const lum = (a[0] + a[1] + a[2]) / 3;
+    const lift = env && env.dark > 0.5 ? 0.12 : 0.03;
+    return [0, 1, 2].map((i) => clamp(lerp(lum, a[i], 0.45) + lift, 0, 1));
   }
 
   // ── flow
