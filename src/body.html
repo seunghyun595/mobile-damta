@@ -1,0 +1,63 @@
+<div id="app">
+  <canvas id="bg"></canvas>
+  <canvas id="fg"></canvas>
+  <canvas id="smoke"></canvas>
+  <div class="fx" id="warm"></div>
+  <div class="fx" id="grade"></div>
+  <div class="fx" id="vignette"></div>
+  <div class="fx" id="matte"></div>
+  <div class="fx" id="flash"></div>
+  <div class="fx" id="grain"></div>
+  <div id="stage" aria-label="길게 눌러 한 모금"></div>
+  <div class="fx" id="curtain"></div>
+  <div id="ring"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="15"/><circle class="arc" cx="20" cy="20" r="15"/></svg></div>
+
+  <div id="ui">
+    <header id="hud">
+      <div class="tally">
+        <div class="row">
+          <span class="t" id="tallyCig" aria-label="오늘 개비 수"><svg viewBox="0 0 24 24"><rect x="2" y="10" width="20" height="4.2" rx="1"/><path d="M7.5 10v4.2"/></svg><b id="nCig">0</b></span>
+          <span class="t" id="tallyPuff" aria-label="오늘 모금 수" hidden><svg viewBox="0 0 24 24"><rect x="8.5" y="7.5" width="7" height="13.5" rx="2.2"/><path d="M10.6 7.5V5a1 1 0 0 1 1-1h.8a1 1 0 0 1 1 1v2.5"/></svg><b id="nPuff">0</b></span>
+        </div>
+        <i id="timer"></i>
+      </div>
+      <div class="tools">
+        <button class="round" id="bFull" type="button" aria-label="전체 화면"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button class="round" id="bSound" type="button" aria-label="소리"><svg viewBox="0 0 24 24"><path d="M4 10v4h3.5L12 18V6L7.5 10z"/><path class="wave" d="M15.5 9.5a3.5 3.5 0 0 1 0 5M18 7a7 7 0 0 1 0 10"/><path class="slash" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
+      </div>
+    </header>
+
+    <button id="bAction" type="button" aria-label="비벼 끄기" data-kind="stub">
+      <svg class="i-stub" viewBox="0 0 24 24"><path d="M3.5 13h17l-1.6 4.4a2 2 0 0 1-1.9 1.3H7a2 2 0 0 1-1.9-1.3z"/><path d="M7.5 13l7.5-5.2"/><path d="M16.4 6.6c.8-.6.3-1.7 1-2.4"/></svg>
+      <svg class="i-eject" viewBox="0 0 24 24"><path d="M12 5l6 7H6z"/><path d="M6 16.5h12"/></svg>
+    </button>
+
+    <section id="sheet" aria-label="선택">
+      <div class="rail" id="rail"></div>
+      <div class="rail" id="rail2" hidden></div>
+    </section>
+
+    <nav id="dock" data-mode="cig">
+      <div class="seg" id="mode">
+        <i class="pill"></i>
+        <button type="button" data-mode="cig" aria-label="연초"><svg viewBox="0 0 24 24"><rect x="2.5" y="13" width="16.5" height="4" rx="1"/><path d="M7.5 13v4"/><path d="M21.2 11.6c0-1.6-1.5-1.9-1.5-3.4s1.5-1.9 1.5-3.4"/></svg></button>
+        <button type="button" data-mode="vape" aria-label="전자담배"><svg viewBox="0 0 24 24"><rect x="8.5" y="8" width="7" height="13" rx="2.2"/><path d="M10.6 8V5.4a1 1 0 0 1 1-1h.8a1 1 0 0 1 1 1V8"/><path d="M10.6 17.5h2.8"/></svg></button>
+      </div>
+      <span class="sep"></span>
+      <button type="button" id="bProduct" data-sheet="product" aria-label="담배 종류">
+        <svg class="i-cig" viewBox="0 0 24 24"><rect x="6" y="5" width="12" height="15.5" rx="1.6"/><path d="M6 9.5h12"/><path d="M9 5V3.5M12 5V3M15 5V3.5"/></svg>
+        <svg class="i-vape" viewBox="0 0 24 24"><path d="M12 3.5c2.6 3.4 4.5 5.8 4.5 8.6a4.5 4.5 0 0 1-9 0c0-2.8 1.9-5.2 4.5-8.6z"/><path d="M10 13.5a2 2 0 0 0 2 2"/></svg>
+      </button>
+      <button type="button" id="bLighter" data-sheet="lighter" aria-label="라이터"><svg viewBox="0 0 24 24"><path d="M12 3c.6 3 4.2 4.6 4.2 8.6a4.2 4.2 0 0 1-8.4 0c0-2.1 1-3.2 2.1-4.2.2 1.5 1 2.4 2.1 2.6-.6-2.4-.6-4.6 0-7z"/><path d="M9 21h6"/></svg></button>
+      <button type="button" id="bPlace" data-sheet="place" aria-label="장소"><svg viewBox="0 0 24 24"><path d="M4 21V9.5l6-4V21M10 21h10V11.5l-5-3"/><path d="M14 14h2M14 17.2h2M6.6 12h1.2M6.6 15.2h1.2M3 21h18"/></svg></button>
+      <button type="button" id="bAtmos" data-sheet="atmos" aria-label="날씨와 분위기"><svg viewBox="0 0 24 24"><path d="M7.5 19h9a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.6 1.1A3 3 0 0 0 7.5 19z"/><path d="M14.6 5.2a3.6 3.6 0 0 0 4.7 4.7"/></svg></button>
+      <button type="button" id="bChain" aria-label="줄담" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9.6 14.4l4.8-4.8"/><path d="M11 6.6l1.5-1.5a3.5 3.5 0 0 1 5 5L16 11.6M13 17.4 11.5 18.9a3.5 3.5 0 0 1-5-5L8 12.4"/></svg></button>
+    </nav>
+  </div>
+
+  <div id="intro">
+    <div class="vf"><i></i><i></i><i></i><i></i><b></b></div>
+    <h1>모바일 담타</h1>
+    <button id="start" type="button" aria-label="불 붙이기"></button>
+  </div>
+</div>
